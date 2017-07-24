@@ -207,12 +207,14 @@
     module.exports = f(require('sanctuary-def'),
                        require('sanctuary-either'),
                        require('sanctuary-maybe'),
+                       require('sanctuary-pair'),
                        require('sanctuary-type-classes'),
                        require('sanctuary-type-identifiers'));
   } else if (typeof define === 'function' && define.amd != null) {
     define(['sanctuary-def',
             'sanctuary-either',
             'sanctuary-maybe',
+            'sanctuary-pair',
             'sanctuary-type-classes',
             'sanctuary-type-identifiers'],
            f);
@@ -220,11 +222,12 @@
     self.sanctuary = f(self.sanctuaryDef,
                        self.sanctuaryEither,
                        self.sanctuaryMaybe,
+                       self.sanctuaryPair,
                        self.sanctuaryTypeClasses,
                        self.sanctuaryTypeIdentifiers);
   }
 
-}(function($, Either, Maybe, Z, type) {
+}(function($, Either, Maybe, Pair, Z, type) {
 
   'use strict';
 
@@ -325,6 +328,15 @@
     function(maybe) { return maybe.isJust ? [maybe.value] : []; }
   );
 
+  //  $Pair :: Type -> Type -> Type
+  var $Pair = $.BinaryType(
+    'sanctuary/Pair',
+    'https://github.com/sanctuary-js/sanctuary-pair',
+    typeEq('sanctuary-pair/Pair@1'),
+    function(pair) { return [pair.fst]; },
+    function(pair) { return [pair.snd]; }
+  );
+
   //  TypeRep :: Type -> Type
   var TypeRep = $.UnaryType(
     'sanctuary/TypeRep',
@@ -347,7 +359,7 @@
     $.Integer,
     $.NonNegativeInteger,
     $Maybe($.Unknown),
-    $.Pair($.Unknown, $.Unknown),
+    $Pair($.Unknown, $.Unknown),
     $.RegexFlags,
     $.ValidDate,
     $.ValidNumber
@@ -2695,16 +2707,16 @@
   //.     the array and the function is applied to the second element.
   //.
   //. ```javascript
-  //. > S.unfoldr(n => n < 5 ? S.Just([n, n + 1]) : S.Nothing, 1)
+  //. > S.unfoldr(n => n < 5 ? S.Just(S.Pair(n, n + 1)) : S.Nothing, 1)
   //. [1, 2, 3, 4]
   //. ```
   function unfoldr(f, x) {
     var result = [];
-    for (var m = f(x); m.isJust; m = f(m.value[1])) result.push(m.value[0]);
+    for (var m = f(x); m.isJust; m = f(m.value.snd)) result.push(m.value.fst);
     return result;
   }
   S.unfoldr =
-  def('unfoldr', {}, [Fn(b, $Maybe($.Pair(a, b))), b, $.Array(a)], unfoldr);
+  def('unfoldr', {}, [Fn(b, $Maybe($Pair(a, b))), b, $.Array(a)], unfoldr);
 
   //# range :: Integer -> Integer -> Array Integer
   //.
@@ -3014,13 +3026,61 @@
   //.
   //. ```javascript
   //. > S.pairs({b: 2, a: 1, c: 3}).sort()
-  //. [['a', 1], ['b', 2], ['c', 3]]
+  //. [Pair('a', 1), Pair('b', 2), Pair('c', 3)]
   //. ```
   function pairs(strMap) {
-    return Z.map(function(k) { return [k, strMap[k]]; }, Object.keys(strMap));
+    return Z.map(function(k) { return Pair(k, strMap[k]); },
+                 Object.keys(strMap));
   }
   S.pairs =
-  def('pairs', {}, [$.StrMap(a), $.Array($.Pair($.String, a))], pairs);
+  def('pairs', {}, [$.StrMap(a), $.Array($Pair($.String, a))], pairs);
+
+  //. ### Pair type
+  //.
+  //. The Pair type represents two-element tuples: a value of type `Pair a b`
+  //. contains a value of type `a` and a value of type `b`.
+  //.
+  //. The implementation is provided by [sanctuary-pair][].
+
+  //# PairType :: Type -> Type -> Type
+  //.
+  //. A [`BinaryType`][BinaryType] for use with [sanctuary-def][].
+  S.PairType = $Pair;
+
+  //# Pair :: TypeRep Pair
+  //.
+  //. The [type representative](#type-representatives) for the Pair type.
+  S.Pair = Pair;
+
+  //# fst :: Pair a b -> a
+  //.
+  //. Returns the first value of the given Pair.
+  //.
+  //. ```javascript
+  //. > S.fst(S.Pair('foo', 42))
+  //. 'foo'
+  //. ```
+  S.fst = def('fst', {}, [$Pair(a, b), a], Pair.fst);
+
+  //# snd :: Pair a b -> b
+  //.
+  //. Returns the second value of the given Pair.
+  //.
+  //. ```javascript
+  //. > S.snd(S.Pair('foo', 42))
+  //. 42
+  //. ```
+  S.snd = def('snd', {}, [$Pair(a, b), b], Pair.snd);
+
+  //# swap :: Pair a b -> Pair b a
+  //.
+  //. Returns the result of swapping the values of the given Pair.
+  //.
+  //. ```javascript
+  //. > S.swap(S.Pair('foo', 42))
+  //. Pair(42, 'foo')
+  //. ```
+  S.swap = def('swap', {}, [$Pair(a, b), $Pair(b, a)], Pair.swap);
 
   //. ### Number
 
@@ -3489,7 +3549,7 @@
     return withRegex(pattern, function() {
       return unfoldr(function(_) {
         return Z.map(function(ss) {
-          return [toMatch(ss), null];
+          return Pair(toMatch(ss), null);
         }, toMaybe(pattern.exec(s)));
       }, []);
     });
@@ -3774,6 +3834,7 @@
 //. [sanctuary-def]:    v:sanctuary-js/sanctuary-def
 //. [sanctuary-either]: v:sanctuary-js/sanctuary-either
 //. [sanctuary-maybe]:  v:sanctuary-js/sanctuary-maybe
+//. [sanctuary-pair]:   v:sanctuary-js/sanctuary-pair
 //. [stable sort]:      https://en.wikipedia.org/wiki/Sorting_algorithm#Stability
 //. [thrush]:           https://github.com/raganwald-deprecated/homoiconic/blob/master/2008-10-30/thrush.markdown
 //. [type identifier]:  v:sanctuary-js/sanctuary-type-identifiers
